@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import psutil
-import socket
 from datetime import datetime
 
 # Set page title and layout
@@ -20,57 +19,63 @@ def get_system_info(hostname):
 
         # Swap memory (similar to virtual memory)
         swap = psutil.swap_memory()
-        total_swap = swap.total / (1024 ** 3)
+        total_swap = swap.total / (1024 ** 3)  # Convert to GB
         used_swap = swap.used / (1024 ** 3)
         used_swap_percent = swap.percent
 
         # Disk space details
         partitions = psutil.disk_partitions()
-        total_disk = free_disk = free_disk_percent = None  # Initialize variables
-        
+        total_disk = free_disk = used_disk_percent = None
+
+        # Iterate over partitions to find suitable disk (e.g., root or primary partition)
         for partition in partitions:
-            if partition.mountpoint == "C:\\" or partition.device.startswith("/"):  # Adjusting for different OS
-                disk_usage = psutil.disk_usage(partition.mountpoint)
-                total_disk = disk_usage.total / (1024 ** 3)
-                free_disk = disk_usage.free / (1024 ** 3)
-                free_disk_percent = disk_usage.percent
-                break  # Exit after finding the first suitable partition
+            try:
+                if partition.fstype:  # Only check partitions with a valid filesystem type
+                    disk_usage = psutil.disk_usage(partition.mountpoint)
+                    total_disk = disk_usage.total / (1024 ** 3)  # Convert to GB
+                    free_disk = disk_usage.free / (1024 ** 3)  # Convert to GB
+                    used_disk_percent = disk_usage.percent
+                    break  # Exit after finding the first suitable partition
+            except PermissionError:
+                continue  # Skip partitions that can't be accessed
 
         # Uptime
         boot_time = datetime.fromtimestamp(psutil.boot_time())
         uptime = datetime.now() - boot_time
-        uptime_str = f"{uptime.days} days {uptime.seconds // 3600} hours {(uptime.seconds // 60) % 60} minutes"
+        uptime_str = f"{uptime.days} days, {uptime.seconds // 3600} hours, {(uptime.seconds // 60) % 60} minutes"
 
-        # Append system info if disk information is available
+        # Ensure total_disk values are available, otherwise set default or N/A
         if total_disk is not None:
             system_info.append({
                 "ServerName": hostname,
-                "Physical Memory(GB)": round(total_memory, 2),
-                "INuse(GB)": round(used_memory, 2),
-                "INuse(%)": round(used_memory_percent, 2),
-                "Pagefile(GB)": round(total_swap, 2),
-                "vsphy(%)": round(used_swap_percent, 2),
-                "virtual_Total(%)": round(total_swap + total_memory, 2),
-                "virtual_allocated(GB)": round(used_swap + used_memory, 2),
-                "allocPercent": round((used_swap + used_memory) / (total_swap + total_memory) * 100, 2),
-                "Total C Drive Size(GB)": round(total_disk, 2),
-                "Free C Drive(%)": round(free_disk_percent, 2),
+                "Physical Memory (GB)": round(total_memory, 2),
+                "In Use Memory (GB)": round(used_memory, 2),
+                "Memory Usage (%)": round(used_memory_percent, 2),
+                "Pagefile (Swap) (GB)": round(total_swap, 2),
+                "Swap Usage (%)": round(used_swap_percent, 2),
+                "Total Virtual Memory (GB)": round(total_swap + total_memory, 2),
+                "Allocated Virtual Memory (GB)": round(used_swap + used_memory, 2),
+                "Allocation Percent (%)": round(((used_swap + used_memory) / (total_swap + total_memory) * 100), 2),
+                "Total Disk Size (GB)": round(total_disk, 2),
+                "Free Disk (GB)": round(free_disk, 2),
+                "Disk Usage (%)": round(used_disk_percent, 2),
                 "Uptime": uptime_str
             })
         else:
             st.warning("No suitable disk partition found. Disk information will be omitted.")
             system_info.append({
                 "ServerName": hostname,
-                "Physical Memory(GB)": round(total_memory, 2),
-                "INuse(GB)": round(used_memory, 2),
-                "INuse(%)": round(used_memory_percent, 2),
-                "Pagefile(GB)": round(total_swap, 2),
-                "vsphy(%)": round(used_swap_percent, 2),
-                "virtual_Total(%)": round(total_swap + total_memory, 2),
-                "virtual_allocated(GB)": round(used_swap + used_memory, 2),
-                "allocPercent": round((used_swap + used_memory) / (total_swap + total_memory) * 100, 2),
-                "Total C Drive Size(GB)": "N/A",
-                "Free C Drive(%)": "N/A",
+                "Physical Memory (GB)": round(total_memory, 2),
+                "In Use Memory (GB)": round(used_memory, 2),
+                "Memory Usage (%)": round(used_memory_percent, 2),
+                "Pagefile (Swap) (GB)": round(total_swap, 2),
+                "Swap Usage (%)": round(used_swap_percent, 2),
+                "Total Virtual Memory (GB)": round(total_swap + total_memory, 2),
+                "Allocated Virtual Memory (GB)": round(used_swap + used_memory, 2),
+                "Allocation Percent (%)": round(((used_swap + used_memory) / (total_swap + total_memory) * 100), 2),
+                "Total Disk Size (GB)": "N/A",
+                "Free Disk (GB)": "N/A",
+                "Disk Usage (%)": "N/A",
                 "Uptime": uptime_str
             })
         
@@ -92,16 +97,17 @@ if hostname:
     # Rename columns
     df.columns = [
         "ServerName", 
-        "Physical Memory(GB)", 
-        "INuse(GB)", 
-        "INuse(%)", 
-        "Pagefile(GB)", 
-        "vsphy(%)", 
-        "virtual_Total(%)", 
-        "virtual_allocated(GB)", 
-        "allocPercent", 
-        "Total C Drive Size(GB)", 
-        "Free C Drive(%)", 
+        "Physical Memory (GB)", 
+        "In Use Memory (GB)", 
+        "Memory Usage (%)", 
+        "Pagefile (Swap) (GB)", 
+        "Swap Usage (%)", 
+        "Total Virtual Memory (GB)", 
+        "Allocated Virtual Memory (GB)", 
+        "Allocation Percent (%)", 
+        "Total Disk Size (GB)", 
+        "Free Disk (GB)", 
+        "Disk Usage (%)", 
         "Uptime"
     ]
     
@@ -110,7 +116,7 @@ if hostname:
     st.dataframe(df)
 
     # Filter and display data where allocated memory is greater than 50%
-    filtered_df = df[df["allocPercent"] > 50]
+    filtered_df = df[df["Allocation Percent (%)"] > 50]
 
     st.header("Filtered Report (Memory Allocation > 50%)")
     st.dataframe(filtered_df)
