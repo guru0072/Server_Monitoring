@@ -26,33 +26,53 @@ def get_system_info(hostname):
 
         # Disk space details
         partitions = psutil.disk_partitions()
+        total_disk = free_disk = free_disk_percent = None  # Initialize variables
+        
         for partition in partitions:
-            if partition.mountpoint == "C:\\":
+            if partition.mountpoint == "C:\\" or partition.device.startswith("/"):  # Adjusting for different OS
                 disk_usage = psutil.disk_usage(partition.mountpoint)
                 total_disk = disk_usage.total / (1024 ** 3)
                 free_disk = disk_usage.free / (1024 ** 3)
                 free_disk_percent = disk_usage.percent
+                break  # Exit after finding the first suitable partition
 
         # Uptime
         boot_time = datetime.fromtimestamp(psutil.boot_time())
         uptime = datetime.now() - boot_time
         uptime_str = f"{uptime.days} days {uptime.seconds // 3600} hours {(uptime.seconds // 60) % 60} minutes"
 
-        # Append to list
-        system_info.append({
-            "ServerName": hostname,
-            "Physical Memory(GB)": round(total_memory, 2),
-            "INuse(GB)": round(used_memory, 2),
-            "INuse(%)": round(used_memory_percent, 2),
-            "Pagefile(GB)": round(total_swap, 2),
-            "vsphy(%)": round(used_swap_percent, 2),
-            "virtual_Total(%)": round(total_swap + total_memory, 2),
-            "virtual_allocated(GB)": round(used_swap + used_memory, 2),
-            "allocPercent": round((used_swap + used_memory) / (total_swap + total_memory) * 100, 2),
-            "Total C Drive Size(GB)": round(total_disk, 2),
-            "Free C Drive(GB)": round(free_disk_percent, 2),
-            "Uptime": uptime_str
-        })
+        # Append system info if disk information is available
+        if total_disk is not None:
+            system_info.append({
+                "ServerName": hostname,
+                "Physical Memory(GB)": round(total_memory, 2),
+                "INuse(GB)": round(used_memory, 2),
+                "INuse(%)": round(used_memory_percent, 2),
+                "Pagefile(GB)": round(total_swap, 2),
+                "vsphy(%)": round(used_swap_percent, 2),
+                "virtual_Total(%)": round(total_swap + total_memory, 2),
+                "virtual_allocated(GB)": round(used_swap + used_memory, 2),
+                "allocPercent": round((used_swap + used_memory) / (total_swap + total_memory) * 100, 2),
+                "Total C Drive Size(GB)": round(total_disk, 2),
+                "Free C Drive(%)": round(free_disk_percent, 2),
+                "Uptime": uptime_str
+            })
+        else:
+            st.warning("No suitable disk partition found. Disk information will be omitted.")
+            system_info.append({
+                "ServerName": hostname,
+                "Physical Memory(GB)": round(total_memory, 2),
+                "INuse(GB)": round(used_memory, 2),
+                "INuse(%)": round(used_memory_percent, 2),
+                "Pagefile(GB)": round(total_swap, 2),
+                "vsphy(%)": round(used_swap_percent, 2),
+                "virtual_Total(%)": round(total_swap + total_memory, 2),
+                "virtual_allocated(GB)": round(used_swap + used_memory, 2),
+                "allocPercent": round((used_swap + used_memory) / (total_swap + total_memory) * 100, 2),
+                "Total C Drive Size(GB)": "N/A",
+                "Free C Drive(%)": "N/A",
+                "Uptime": uptime_str
+            })
         
     except Exception as e:
         st.error(f"An error occurred while fetching the system information: {e}")
@@ -81,7 +101,7 @@ if hostname:
         "virtual_allocated(GB)", 
         "allocPercent", 
         "Total C Drive Size(GB)", 
-        "Free C Drive(GB)", 
+        "Free C Drive(%)", 
         "Uptime"
     ]
     
@@ -104,5 +124,3 @@ if hostname:
         file_name=f"system_report_{hostname}.csv",
         mime="text/csv",
     )
-    
-  
